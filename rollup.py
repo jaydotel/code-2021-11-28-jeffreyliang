@@ -14,6 +14,9 @@ def main() -> None:
         format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s'
     )
 
+    xlsx_file_name = sys.argv[1] if len(sys.argv) > 1 else 'output.xlsx'
+
+    roll_up = RollUp(xlsx_file_name)
     roll_up.run()
 
 if __name__ == "__main__":

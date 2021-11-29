@@ -3,18 +3,38 @@
 from collections import defaultdict
 import logging
 
+from xlsxwriter import Workbook
+
 from rollup.helpers.bom_api import QuickReleaseBoMAPI
 
 _LOGGER = logging.getLogger(__name__)
 
 
 class RollUp:
+    """Contains the functionality to perform a quantity rollup calculation given
+    part numbers and how they are grouped into assemblies.
+
+    Each part is treated similar to a node in a tree data structure where each
+    part/node may have a parent part and children parts.
+    """
+
+    def __init__(self, xlsx_file_name: str) -> None:
+        self.xlsx_file_name = xlsx_file_name
+
         self.parts_grouped_by_parent = {}
         self.number_of_parts_required = defaultdict(int)
 
         self.quick_release_bom_api = QuickReleaseBoMAPI()
 
     def run(self) -> None:
+        """Runs the bulk of RollUp's functionality
+
+        1. Calls BoM API to get the parts data
+        2. Groups the data by parent
+        3. Calculates total parts required while calling BoM API to get the
+        `part_number` for each part
+        4. Outputs to xlsx
+        """
         parts_data = (self.quick_release_bom_api.get_bill_of_material().json()
                       .get('data', []))
 
@@ -24,6 +44,7 @@ class RollUp:
             # Pass in hard coded info initially to get the recursion started
             self.calc_parts_required('parents', 1)
 
+            self.output_to_xlsx()
         else:
             _LOGGER(f'No data returned from BoM. {parts_data=}')
 
@@ -86,3 +107,21 @@ class RollUp:
             # Calculate total parts required this part's children (if any)
             self.calc_parts_required(part_id, total_parts_required)
 
+    def output_to_xlsx(self) -> None:
+        """Outputs total parts required categorised by `part_number` to a .xlsx
+        file in the project's root dir
+
+        File name can be defined as a second argument in command line. Default
+        name will be 'output.xlsx'
+        """
+
+        workbook = Workbook(self.xlsx_file_name)
+        worksheet = workbook.add_worksheet()
+
+        # Add Part Number column
+        worksheet.write_column(0, 0, tuple(self.number_of_parts_required.keys()))
+
+        # Add Total Parts Required Column
+        worksheet.write_column(0, 1, tuple(self.number_of_parts_required.values()))
+
+        workbook.close()
